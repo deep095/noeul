@@ -1,6 +1,16 @@
 # Noeul
 
+[![Latest release](https://img.shields.io/github/v/release/deep095/noeul)](https://github.com/deep095/noeul/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/deep095/noeul/actions/workflows/ci.yml/badge.svg)](https://github.com/deep095/noeul/actions/workflows/ci.yml)
+
 A free desktop music player: browse a home feed, search YouTube Music's catalog, play tracks (cached locally on first play), or download them (MP3, tagged) into a local library — no ads.
+
+## Download
+
+**[Latest release →](https://github.com/deep095/noeul/releases/latest)** (Windows installer)
+
+The installer isn't code-signed, so Windows SmartScreen will warn on first run ("Windows protected your PC") — click **More info → Run anyway**. Normal for an unsigned indie app; nothing's wrong.
 
 ## Features
 
@@ -10,7 +20,7 @@ A free desktop music player: browse a home feed, search YouTube Music's catalog,
 - A handful of built-in accent themes, plus a custom color picker
 - No ads, no account, no tracking
 
-## Run it
+## Run from source
 
 ```
 npm install
@@ -25,7 +35,7 @@ This opens the app in a live-reloading dev window. First run will silently downl
 npm run dist
 ```
 
-Produces an NSIS installer in `dist/`. Unsigned builds trigger a Windows SmartScreen warning on first run ("Windows protected your PC") — click **More info → Run anyway**. This is normal for an unsigned indie app.
+Produces an NSIS installer in `dist/` — this is what gets attached to a [release](https://github.com/deep095/noeul/releases).
 
 ## How it works
 
