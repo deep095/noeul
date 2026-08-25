@@ -1,8 +1,6 @@
-# Noeul (노을)
+# Noeul
 
 A free desktop music player: browse a home feed, search YouTube Music's catalog, play tracks (cached locally on first play), or download them (MP3, tagged) into a local library — no ads.
-
-Named for the Korean word for the glow of a sunset — the one deliberately colorful moment in an otherwise dim, quiet interface.
 
 ## Features
 
