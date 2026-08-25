@@ -10,7 +10,7 @@ A free desktop music player: browse a home feed, search YouTube Music's catalog,
 
 **[Latest release →](https://github.com/deep095/noeul/releases/latest)** (Windows installer)
 
-The installer isn't code-signed, so Windows SmartScreen will warn on first run ("Windows protected your PC") — click **More info → Run anyway**. Normal for an unsigned indie app; nothing's wrong.
+Unsigned, so Windows SmartScreen will warn on first run — click **More info → Run anyway**. Normal for an indie app, nothing's wrong.
 
 ## Features
 
@@ -27,7 +27,7 @@ npm install
 npm run dev
 ```
 
-This opens the app in a live-reloading dev window. First run will silently download `yt-dlp` and use the bundled `ffmpeg` — search should work immediately; playing or downloading a song for the first time may take a few seconds while `yt-dlp` is fetched and the track downloads. Replaying a track you've already played is instant (served from the local cache).
+Opens a live-reloading dev window. `yt-dlp` downloads itself on first use, so the first play/download is a little slower — after that, replays are instant (served from the local cache).
 
 ## Build a Windows installer
 
@@ -39,12 +39,11 @@ Produces an NSIS installer in `dist/` — this is what gets attached to a [relea
 
 ## How it works
 
-- `src/main/search.ts` — queries YouTube Music's catalog via `ytmusic-api` (no API key needed), including the curated home feed (`getHome`).
-- `src/main/downloader.ts` — uses `yt-dlp` to either cache a track locally for playback (`resolvePlayableFile`) or download + convert it to a tagged MP3 for the library (`downloadSong`, via `ffmpeg`).
-- `src/main/index.ts` — serves local audio to the renderer through a registered `noeulfile://` protocol (backed by `net.fetch` on the file) rather than a raw `file://` URL, since Chromium blocks `file://` media from the `http://localhost` origin the renderer runs on in dev mode.
-- `src/main/library.ts` — a simple local JSON index of downloaded songs, stored in the app's user-data folder.
-- `src/main/discordPresence.ts` — Discord Rich Presence over a local RPC connection to the Discord desktop client (no login/account-linking involved).
-- `src/renderer` — the React UI (home, search, library, player bar).
+- `src/main/search.ts` — YouTube Music search and home feed, via `ytmusic-api`
+- `src/main/downloader.ts` — streams and downloads audio with `yt-dlp` + `ffmpeg`
+- `src/main/library.ts` — local JSON index of downloaded songs
+- `src/main/discordPresence.ts` — Discord Rich Presence over a local RPC connection
+- `src/renderer` — the React UI (home, search, library, player bar)
 
 ## Note on legality
 
