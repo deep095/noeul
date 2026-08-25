@@ -1,0 +1,2200 @@
+:root {
+  /* Fluent-inspired: layered translucent surfaces on a neutral base, with a
+     single accent used sparingly (selection, one button, a progress fill).
+     These are the Crimson theme's derived values (DEFAULT_THEME_ID in
+     accentThemes.ts) — the fallback for the brief window before JS applies
+     the saved theme on mount, everything here otherwise set per-theme. */
+  --bg: #201e21;
+  --bg-elevated: #2a272c;
+  --bg-hover: rgba(234, 194, 201, 0.06);
+  --bg-pressed: rgba(234, 194, 201, 0.04);
+  --bg-inset: rgba(32, 30, 33, 0.85);
+  --border: rgba(230, 183, 192, 0.09);
+  --border-soft: rgba(234, 194, 201, 0.06);
+  --text: #ffffff;
+  --text-dim: rgba(255, 255, 255, 0.68);
+  --text-faint: rgba(255, 255, 255, 0.45);
+  --overlay-weak: rgba(241, 214, 219, 0.07);
+  --overlay-medium: rgba(241, 214, 219, 0.13);
+  --overlay-strong: rgba(241, 214, 219, 0.22);
+  --accent: #b8324a;
+  --accent-2: #d1a24a;
+  --accent-gradient: linear-gradient(135deg, #b8324a 0%, #d1a24a 100%);
+  --accent-soft: rgba(184, 50, 74, 0.16);
+  --glow-1: rgba(184, 50, 74, 0.09);
+  --glow-2: rgba(209, 162, 74, 0.07);
+  --accent-hover: #c35165;
+  --accent-ink: #f8ebed;
+  --danger: #e2604a;
+
+  --font-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Bundled locally (not loaded from Google Fonts' CDN) — a desktop app's
+   wordmark can't depend on an internet connection to render, and the splash
+   screen in particular needs it available on the very first frame. */
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: normal;
+  font-weight: 900;
+  font-display: block;
+  src: url('./assets/fonts/PlayfairDisplay-Black.woff2') format('woff2');
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-feature-settings: 'tnum' 1;
+  user-select: none;
+  position: relative;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Every <input> in the app resets its own focus outline where it's used,
+   but no <button> ever did — Chromium's default focus ring (not this
+   app's own styling) was showing on every button click. A :focus-visible
+   version (real indicator for keyboard nav, suppressed for mouse clicks)
+   was tried first, but Chromium's heuristic for what counts as
+   "keyboard-like" focus turned out to also fire for a plain mouse click
+   landing on the first focusable element inside a just-opened popover —
+   exactly the buttons here — so it kept reappearing as the same boxy
+   halo. Every interactive control in this app already has its own
+   hover/active styling, which carries the feedback instead. */
+button:focus {
+  outline: none;
+}
+
+/* Chromium's default drag-ghost for a plain <img> — a stack of thumbnail
+   copies following the cursor — is trivial to trigger by accident (a
+   trackpad click that drifts a pixel or two while pressed) and looks like
+   album art duplicating itself. draggable={false} on each <img> already
+   covers this app's own thumbnails; this is a blanket backstop for any
+   image (including ones rendered without that prop) so it can't happen
+   anywhere in the UI. */
+img {
+  -webkit-user-drag: none;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--overlay-medium);
+  border-radius: 10px;
+  border: 2px solid var(--bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--overlay-strong);
+}
+
+/* Fluent's signature interaction: a soft highlight that tracks the cursor
+   across a surface instead of a flat hover-color swap. .reveal's host sets
+   --mx/--my via JS (see reveal.ts); border-radius: inherit keeps it matched
+   to whatever shape the host element has, no clipping/overflow needed. */
+.reveal {
+  position: relative;
+}
+
+.reveal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(140px circle at var(--mx, 50%) var(--my, 50%), var(--overlay-weak), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.25s var(--ease);
+  pointer-events: none;
+}
+
+.reveal:hover::after {
+  opacity: 1;
+}
+
+/* ---------- layout ---------- */
+
+.app {
+  position: relative;
+  display: grid;
+  grid-template-columns: 224px 1fr;
+  grid-template-rows: 1fr auto;
+  gap: 10px;
+  height: 100vh;
+  padding: 10px;
+  isolation: isolate;
+}
+
+/* Ambient depth behind the whole window — two large, softly blurred glows
+   in the current theme's two accent colors, fixed in place (they don't
+   scroll with content) and sitting behind every surface via z-index. The
+   sidebar/player-bar's existing backdrop-filter blur picks these up too,
+   so the whole app reads as sitting on top of the theme's color, not just
+   the small handful of spots that use --accent directly. */
+.app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(560px circle at 8% -8%, var(--glow-1), transparent 45%),
+    radial-gradient(600px circle at 106% 108%, var(--glow-2), transparent 45%);
+  pointer-events: none;
+}
+
+.sidebar {
+  position: relative;
+  z-index: 1;
+  grid-row: 1;
+  background: var(--bg-inset);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 24px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  padding: 2px 10px;
+}
+
+.brand-word {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 19px;
+  letter-spacing: 0.01em;
+  display: inline-block;
+  opacity: 0;
+  animation: brand-word-in 0.5s var(--ease-spring) both;
+}
+
+@keyframes brand-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Gradient text-clip lives on this inner span, not the outer .brand-word —
+   mixing the clipped text with the note glyph's plain SVG in the same
+   clipped box made the gradient fail to paint at all in testing. A per-
+   letter stagger (nested inline-block spans) broke it the same way even
+   after that split, so the entrance animation now plays on the whole word
+   at once instead of wrapping individual letters. */
+.brand-word-text {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 400;
+  transition: background-color 0.1s var(--ease), color 0.1s var(--ease);
+}
+
+.nav-item svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.nav-item:active {
+  background: var(--bg-pressed);
+}
+
+.nav-item.active {
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-weight: 600;
+  position: relative;
+}
+
+/* the one piece of Fluent's selection language worth keeping: a small
+   accent bar on the active item, not a color wash across it */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--accent-gradient);
+}
+
+.nav-item.active svg {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.nav-count {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  animation: badge-pop 0.35s var(--ease-spring) both;
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sidebar-heading {
+  padding: 0 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.nav-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-nav-in {
+  animation: playlist-nav-in 0.25s var(--ease) both;
+}
+
+@keyframes playlist-nav-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.sidebar-new-playlist {
+  padding: 0 6px;
+}
+
+.sidebar-new-playlist input {
+  width: 100%;
+  background: var(--bg-pressed);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  padding: 8px 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.sidebar-new-playlist input:focus {
+  outline: none;
+  border-color: var(--text-faint);
+}
+
+/* Fills the leftover space above the Appearance trigger — without it that
+   gap just read as dead air between the playlist list and the bottom of
+   the sidebar. flex:1 + min-height:0 so it shrinks out of the way (rather
+   than forcing the sidebar to scroll) once there are enough playlists to
+   fill the space on their own. */
+.sidebar-decor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--accent);
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+/* ---------- appearance settings ---------- */
+
+.settings-menu-wrap {
+  position: relative;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.settings-trigger {
+  width: 100%;
+}
+
+.settings-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 234px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: suggestions-in 0.12s var(--ease) both;
+}
+
+.settings-menu-section + .settings-menu-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.settings-menu-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 7px;
+}
+
+/* Compact circular swatch chips in a single row per section — three per
+   mode, so a grid was never needed; a Discord-style row reads as a picker,
+   not a color-grid dashboard. */
+.theme-swatch-row {
+  display: flex;
+  gap: 7px;
+}
+
+.theme-swatch {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  outline: 1px solid var(--overlay-medium);
+  outline-offset: -1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s var(--ease-spring), outline-color 0.15s var(--ease);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+
+.theme-swatch:hover {
+  transform: scale(1.12);
+}
+
+.theme-swatch:active {
+  transform: scale(0.94);
+}
+
+.theme-swatch.selected {
+  border-color: var(--text);
+  outline-color: transparent;
+}
+
+.theme-swatch svg {
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  animation: swatch-check-in 0.2s var(--ease-spring) both;
+}
+
+@keyframes swatch-check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.custom-gradient-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.custom-gradient-preview {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border-radius: var(--radius-pill);
+}
+
+/* Native color-picker inputs, restyled down to a plain round swatch button —
+   default browser chrome (the rectangular padded well most engines render)
+   would look completely out of place next to the app's own swatches. */
+.custom-color-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  outline: 2px solid var(--overlay-medium);
+  outline-offset: 1px;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-spring), outline-color 0.15s var(--ease);
+}
+
+.custom-color-input:hover {
+  transform: scale(1.12);
+  outline-color: var(--overlay-strong);
+}
+
+.custom-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 50%;
+}
+
+.custom-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.custom-mode-toggle {
+  display: flex;
+  gap: 2px;
+  margin-top: 8px;
+  background: var(--bg-pressed);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+}
+
+.custom-mode-toggle button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 500;
+  transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.custom-mode-toggle button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  grid-row: 1;
+  overflow-y: auto;
+  padding: 28px 32px 110px;
+}
+
+.home-page,
+.library-view {
+  animation: view-in 0.2s var(--ease) both;
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- search ---------- */
+
+.search-bar-wrap {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+/* Faint oversized instrument line-art bleeding out from behind the bar —
+   the same "ambient texture" language as the splash screen's instruments,
+   just far more restrained since this sits on screen the whole time rather
+   than for a couple of seconds. Kept out of the bar's own footprint so it
+   never competes with the input text. */
+.search-decor {
+  position: absolute;
+  z-index: -1;
+  color: var(--accent);
+  pointer-events: none;
+}
+
+.search-decor-guitar {
+  top: -54px;
+  right: 18px;
+  opacity: 0.07;
+  transform: rotate(18deg);
+}
+
+.search-decor-note {
+  top: -22px;
+  right: 210px;
+  opacity: 0.06;
+  transform: rotate(-10deg);
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-bar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 4px 6px 4px 18px;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+/* A colored ring spread evenly around the whole bar reads as a generic
+   "AI-generated" focus glow — the border-color shift alone is already a
+   clear, functional focus signal; the shadow here is just a plain neutral
+   drop shadow for a touch of lift, not another layer of accent color. */
+.search-bar:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
+}
+
+.search-bar svg {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.search-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 9px 0;
+  font-family: var(--font-ui);
+  font-size: 14px;
+}
+
+.search-bar input::placeholder {
+  color: var(--text-faint);
+}
+
+.search-bar input:focus {
+  outline: none;
+}
+
+.genre-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.genre-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 14px 11px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: border-color 0.15s var(--ease), color 0.1s var(--ease);
+}
+
+.genre-menu-trigger:hover {
+  color: var(--text);
+}
+
+.genre-menu-trigger.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.genre-menu-chevron {
+  color: var(--text-faint);
+}
+
+/* The base .playlist-menu class scrolls itself (max-height + overflow-y) —
+   fine for a flat item list, but this menu now has a tab row above the
+   list that needs to stay put while only the list scrolls. Overridden
+   here (combined selector for guaranteed precedence over the shared base
+   class, regardless of stylesheet order) so the scroll moves down to
+   .genre-menu-list instead. */
+.playlist-menu.genre-menu {
+  min-width: 268px;
+  max-height: none;
+  overflow: visible;
+  padding: 8px;
+}
+
+/* A plain underline-indicator tab bar, not a filled segmented pill — the
+   pill/block treatment (also used for the appearance panel's Dark/Light
+   toggle, where it's a deliberate on/off switch) reads as a decorative
+   "block" here where it's really just choosing which list to view. */
+.category-tabs {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 2px;
+}
+
+.category-tabs button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 9px;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: color 0.15s var(--ease);
+}
+
+.category-tabs button svg {
+  opacity: 0.75;
+}
+
+.category-tabs button:hover {
+  color: var(--text-dim);
+}
+
+.category-tabs button.active {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Same left-accent-bar language as the sidebar's own active nav item
+   (.nav-item.active::before) — a marker beside the label, not a box
+   around it or a line underneath it. */
+.category-tabs button.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 2px;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--accent-gradient);
+}
+
+/* A soundwave-shaped divider under the tabs instead of a plain rule —
+   a small nod to what the menu is actually for. */
+.genre-menu-wave {
+  display: block;
+  width: 100%;
+  height: 5px;
+  margin-bottom: 8px;
+  color: var(--border-soft);
+}
+
+.genre-menu-wave path {
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+.genre-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.genre-menu-country {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.genre-menu-country.expanded {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.genre-menu-country-chevron {
+  color: var(--text-faint);
+  flex-shrink: 0;
+  transition: transform 0.15s var(--ease);
+}
+
+/* Points toward the flyout, which opens to the left. */
+.genre-menu-country-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+/* Rendered fixed-positioned beside the hovered country row (see
+   CategoryMenu's activateCountry) rather than as a second Popover — it's
+   still a plain DOM child of the outer popover's own portaled content, so
+   the outer popover's outside-click handling already treats clicks in
+   here as "inside" without needing to coordinate between two separate
+   floating layers. */
+.genre-menu-flyout {
+  min-width: 190px;
+  max-width: 260px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: suggestions-in 0.12s var(--ease) both;
+  z-index: 21;
+}
+
+.genre-menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* Plain rows with a small note glyph, not filled chips — a permanent
+   background fill on every tile is what read as "blocky"; color only
+   shows up on hover or when a genre is the active selection. */
+.genre-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  padding: 8px 9px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 0.1s var(--ease), color 0.1s var(--ease);
+}
+
+.genre-menu-item svg {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: color 0.1s var(--ease);
+}
+
+.genre-menu-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.genre-menu-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.genre-menu-item.active svg {
+  color: var(--accent);
+}
+
+.search-bar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-gradient);
+  border: none;
+  color: var(--accent-ink);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background-color 0.1s var(--ease), transform 0.15s var(--ease-spring);
+}
+
+.search-bar button:active:not(:disabled) {
+  transform: scale(0.88);
+}
+
+.search-bar button:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.search-bar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  z-index: 10;
+  max-height: 280px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: suggestions-in 0.12s var(--ease) both;
+  transform-origin: top;
+}
+
+@keyframes suggestions-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.suggestions li {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.08s var(--ease);
+}
+
+.suggestions li:hover {
+  background: var(--bg-hover);
+}
+
+.suggestion-art {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.suggestion-art.placeholder {
+  background: var(--bg-hover);
+}
+
+.suggestion-meta {
+  min-width: 0;
+}
+
+.suggestion-title {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-artist {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- headings / states ---------- */
+
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--text);
+}
+
+h2 {
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.005em;
+  margin: 0 0 12px;
+  color: var(--text);
+}
+
+.playlist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.playlist-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.playlist-header h2:hover {
+  color: var(--text);
+}
+
+.playlist-header h2 svg {
+  opacity: 0.5;
+}
+
+.playlist-header form input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 16px;
+  padding: 5px 8px;
+}
+
+.playlist-header form input:focus {
+  outline: none;
+  border-color: var(--text-faint);
+}
+
+.playlist-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.playlist-header-actions .song-row-action {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-soft);
+}
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-soft);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin-bottom: 16px;
+  animation: view-in 0.2s var(--ease) both;
+}
+
+.offline-banner svg {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.offline-banner.ready {
+  color: var(--text);
+  border-color: var(--accent-soft);
+}
+
+.offline-banner.ready svg {
+  color: var(--accent);
+}
+
+.offline-banner span {
+  flex: 1;
+}
+
+.offline-banner-action {
+  flex-shrink: 0;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background-color 0.1s var(--ease);
+}
+
+.offline-banner-action:hover {
+  background: var(--accent-hover);
+}
+
+.view-subtitle {
+  margin: -8px 0 16px;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.empty,
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-faint);
+  padding: 56px 0;
+  text-align: center;
+  font-size: 13px;
+}
+
+.empty svg {
+  opacity: 0.4;
+}
+
+.error {
+  color: var(--danger);
+}
+
+/* ---------- song list / rows ---------- */
+
+.song-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  transition: background-color 0.08s var(--ease);
+  animation: row-in 0.2s var(--ease) both;
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.song-row:hover {
+  background: var(--bg-hover);
+}
+
+.song-row.active {
+  background: var(--bg-elevated);
+}
+
+.song-row-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  transition: background-color 0.1s var(--ease), color 0.1s var(--ease);
+}
+
+.song-row-play:hover {
+  background: var(--bg-pressed);
+  color: var(--text);
+}
+
+.song-row.active .song-row-play {
+  color: var(--accent);
+}
+
+.song-row-art {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.song-row-art.placeholder {
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+}
+
+.song-row-art-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.art-now-playing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: var(--radius-sm);
+}
+
+/* animated equalizer — a small, functional detail, not a decoration */
+.now-playing-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 13px;
+}
+
+.now-playing-bars span {
+  width: 2.5px;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: eq-bounce 0.85s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+.now-playing-bars span:nth-child(1) {
+  height: 40%;
+  animation-delay: -0.6s;
+}
+
+.now-playing-bars span:nth-child(2) {
+  height: 100%;
+  animation-delay: -0.3s;
+}
+
+.now-playing-bars span:nth-child(3) {
+  height: 65%;
+  animation-delay: 0s;
+}
+
+@keyframes eq-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.song-row-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-row-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.song-row.active .song-row-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.song-row-artist {
+  color: var(--text-faint);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.song-row-duration {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.song-row-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-dim);
+  transition: color 0.1s var(--ease), background-color 0.1s var(--ease);
+}
+
+.song-row-action:hover:not(:disabled) {
+  background: var(--bg-pressed);
+  color: var(--accent);
+}
+
+.song-row-action.remove:hover {
+  background: rgba(226, 96, 74, 0.14);
+  color: var(--danger);
+}
+
+.song-row-action:disabled {
+  cursor: default;
+}
+
+.song-row-action .spin {
+  animation: spin 0.9s linear infinite;
+}
+
+.song-row-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ---------- add-to-playlist popover ---------- */
+
+.playlist-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.playlist-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 180px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: suggestions-in 0.12s var(--ease) both;
+}
+
+.playlist-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.playlist-menu-item.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.playlist-menu-item.new {
+  color: var(--text-dim);
+  border-top: 1px solid var(--border-soft);
+  margin-top: 2px;
+  padding-top: 9px;
+}
+
+.playlist-menu-empty {
+  padding: 10px;
+  color: var(--text-faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+.playlist-menu-label {
+  display: block;
+  padding: 6px 10px 2px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.playlist-menu-create {
+  padding: 4px;
+}
+
+.playlist-menu-create input {
+  width: 100%;
+  background: var(--bg-pressed);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 7px 9px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.playlist-menu-create input:focus {
+  outline: none;
+  border-color: var(--text-faint);
+}
+
+.badge-in {
+  animation: badge-pop 0.4s var(--ease-spring) both;
+}
+
+@keyframes badge-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---------- home ---------- */
+
+.hero {
+  margin-bottom: 28px;
+}
+
+/* The gradient used to run across the whole heading below — striking on
+   one theme, muddy or harsh on another, and it fought the app's own
+   premise of staying mostly neutral with color used in one deliberate
+   spot. Here, sized down to a small marker, is that one spot instead. */
+.hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+
+.hero-eyebrow::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  flex-shrink: 0;
+}
+
+.hero-copy h1 {
+  margin: 0;
+  color: var(--text);
+}
+
+.shelf {
+  margin-bottom: 28px;
+  animation: shelf-in 0.3s var(--ease) both;
+}
+
+.shelf-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.shelf-heading-row h2 {
+  margin: 0;
+}
+
+.shelf-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  transition: background-color 0.1s var(--ease), color 0.1s var(--ease);
+}
+
+.shelf-refresh:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.shelf-refresh:disabled {
+  cursor: default;
+}
+
+.shelf-refresh .spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes shelf-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* skeleton loading — shaped like the real content instead of a generic spinner */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--overlay-weak), transparent);
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-title {
+  width: 150px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+
+.home-card-skeleton {
+  flex: 0 0 172px;
+  width: 172px;
+  height: 172px;
+  border-radius: var(--radius-md);
+}
+
+.shelf-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin: 0 -2px;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.home-card {
+  flex: 0 0 172px;
+  width: 172px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  border-radius: var(--radius-md);
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.card-in {
+  animation: card-in 0.35s var(--ease) both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.home-card:hover {
+  transform: translateY(-4px);
+}
+
+.home-card:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+.home-card-art-wrap {
+  position: relative;
+  width: 172px;
+  height: 172px;
+}
+
+.home-card-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: box-shadow 0.2s var(--ease);
+}
+
+.home-card:hover .home-card-art {
+  box-shadow: 0 14px 28px -10px rgba(0, 0, 0, 0.55);
+}
+
+.home-card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s var(--ease);
+  pointer-events: none;
+}
+
+.home-card:hover .home-card-art img {
+  transform: scale(1.06);
+}
+
+.home-card-art-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+}
+
+.home-card-play {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(6px) scale(0.9);
+  transition: opacity 0.15s var(--ease), transform 0.2s var(--ease-spring);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.home-card:hover .home-card-play {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.home-card-now-playing {
+  border-radius: var(--radius-md);
+}
+
+.card-menu-wrap {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+}
+
+.card-menu-trigger {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 10, 0.55);
+  backdrop-filter: blur(6px);
+  border: none;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease), background-color 0.1s var(--ease);
+}
+
+.home-card:hover .card-menu-trigger,
+.card-menu-wrap:focus-within .card-menu-trigger {
+  opacity: 1;
+}
+
+.card-menu-trigger:hover {
+  background: rgba(10, 10, 10, 0.8);
+}
+
+.card-menu {
+  top: calc(100% + 4px);
+  right: 0;
+  left: auto;
+}
+
+.card-menu-divider {
+  height: 1px;
+  background: var(--border-soft);
+  margin: 4px 2px;
+}
+
+.home-card-title {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-card-subtitle {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- player bar ---------- */
+
+.player-bar {
+  position: relative;
+  z-index: 1;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: 260px 1fr auto 160px;
+  align-items: center;
+  gap: 20px;
+  background: var(--bg-inset);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 10px 22px;
+}
+
+.player-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.player-bar-actions .song-row-action:disabled {
+  opacity: 0.35;
+}
+
+.toast {
+  position: absolute;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--danger);
+  color: #fff2ee;
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.player-bar-error {
+  position: absolute;
+  top: -42px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--danger);
+  color: #fff2ee;
+  text-align: center;
+  padding: 8px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 500;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  animation: error-in 0.15s var(--ease) both;
+}
+
+@keyframes error-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.player-bar-track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  /* A hard backstop, not just a style choice: whatever the current track
+     is, this guarantees only one art image's worth of space can ever be
+     occupied here — anything beyond a single 44px art-wrap + the meta
+     text is clipped rather than visually spilling out as extra thumbnails. */
+  overflow: hidden;
+}
+
+.player-bar-art-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  /* Redundant with the blanket `img { -webkit-user-drag: none }` rule and
+     the element's own draggable={false} — extra insurance against a
+     native drag-ghost specifically here, in case the drag source
+     Chromium picks isn't the <img> itself. */
+  -webkit-user-drag: none;
+}
+
+/* A small, restrained glow — present only while something is actually
+   playing, not a decoration slapped on everywhere. */
+/* A box-shadow glow rather than a blurred ::before layer — the previous
+   version rebuilt a filter:blur() composited layer from scratch on every
+   single song change (this element remounts via a `key` change), which is
+   a known trigger for Chromium leaving stale painted content behind on
+   Windows with certain GPU drivers: what looked like old album art
+   "stacking" was the compositor failing to repaint this region, not a
+   real DOM duplication. box-shadow doesn't need its own composited layer,
+   so there's nothing for that bug to latch onto. */
+.player-bar-art-wrap.playing {
+  animation: art-glow-pulse 3s ease-in-out infinite;
+}
+
+@keyframes art-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px 1px var(--accent-soft);
+  }
+  50% {
+    box-shadow: 0 0 14px 3px var(--accent-soft);
+  }
+}
+
+.player-bar-track img {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--border-soft);
+}
+
+.player-bar-meta {
+  min-width: 0;
+  animation: meta-in 0.25s var(--ease) both;
+}
+
+@keyframes meta-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.player-bar-art-wrap {
+  animation: meta-in 0.25s var(--ease) both;
+}
+
+.player-bar-title {
+  font-weight: 500;
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.player-bar-artist {
+  color: var(--text-faint);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-bar-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.player-bar-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.player-bar-buttons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.player-bar-buttons button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  transition: color 0.1s var(--ease), transform 0.15s var(--ease-spring);
+}
+
+.player-bar-buttons button:active:not(:disabled) {
+  transform: scale(0.88);
+}
+
+.player-bar-buttons button:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.player-bar-buttons button:disabled {
+  opacity: 0.35;
+}
+
+.play-pause {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-gradient) !important;
+  color: var(--accent-ink) !important;
+}
+
+.play-pause:hover:not(:disabled) {
+  background: var(--accent-hover) !important;
+}
+
+.play-pause .spin {
+  animation: spin 0.9s linear infinite;
+}
+
+.player-bar-seek {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 560px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-bar-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: end;
+  color: var(--text-faint);
+}
+
+/* custom range: thin neutral track, accent fill only on the filled portion */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--fill, 0%),
+    var(--overlay-medium) var(--fill, 0%),
+    var(--overlay-medium) 100%
+  );
+  cursor: pointer;
+}
+
+.player-bar-volume input[type='range'] {
+  width: 90px;
+  flex: initial;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+  margin-top: -4.5px;
+  opacity: 0;
+  transition: opacity 0.1s var(--ease);
+}
+
+input[type='range']:hover::-webkit-slider-thumb,
+input[type='range']:focus::-webkit-slider-thumb,
+input[type='range']:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+input[type='range']:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- guitar-string motif (player-bar loading indicator) ---------- */
+
+/* Each string is a slightly bowed curve; the animation shifts *where* it
+   bows to (control point moves from one side of the string to the other)
+   by interpolating the `d` path directly. An earlier version flipped the
+   bow with `transform: scaleX(-1)` around the path's own center, which
+   is cheaper to write but passes through scaleX(0) at the animation's
+   midpoint — the string's width collapses to zero and it visibly
+   vanishes for an instant every half-cycle. Animating `d` keeps the
+   path a real, continuously-visible curve throughout, which is what
+   actually reads as a smooth sway instead of a flicker. */
+@keyframes pluck-loader-1 {
+  0%,
+  100% {
+    d: path('M5 2 Q7 10 5 18');
+  }
+  50% {
+    d: path('M5 2 Q3 10 5 18');
+  }
+}
+@keyframes pluck-loader-2 {
+  0%,
+  100% {
+    d: path('M10 2 Q12 10 10 18');
+  }
+  50% {
+    d: path('M10 2 Q8 10 10 18');
+  }
+}
+@keyframes pluck-loader-3 {
+  0%,
+  100% {
+    d: path('M15 2 Q17 10 15 18');
+  }
+  50% {
+    d: path('M15 2 Q13 10 15 18');
+  }
+}
+
+.pluck-loader-1 {
+  animation: pluck-loader-1 0.95s ease-in-out infinite;
+}
+.pluck-loader-2 {
+  animation: pluck-loader-2 0.95s ease-in-out infinite;
+  animation-delay: 0.1s;
+}
+.pluck-loader-3 {
+  animation: pluck-loader-3 0.95s ease-in-out infinite;
+  animation-delay: 0.2s;
+}
+
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--bg);
+  opacity: 1;
+  transition: opacity 0.5s var(--ease);
+}
+
+.splash-screen.fading {
+  opacity: 0;
+}
+
+.splash-instruments {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Real lucide icons, not freehand illustration — oversized and kept to a
+   faint accent tint so each one reads as ambient texture, not as a row
+   of icons. Each fades in from nothing, holds barely visible, then fades
+   back out — instruments emerging and dissolving into the background
+   rather than one bold centered mark. */
+.splash-instrument {
+  position: absolute;
+  color: var(--accent);
+  opacity: 0;
+  animation: splash-instrument-fade 2.6s ease-in-out both;
+}
+
+@keyframes splash-instrument-fade {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  35% {
+    opacity: 0.34;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+.splash-word {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: clamp(48px, 8vw, 72px);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  filter: drop-shadow(0 0 28px var(--accent-soft));
+  opacity: 0;
+  animation: splash-word-breathe 2.6s var(--ease) both;
+}
+
+/* Gradient text-clip lives here, not on .splash-word — mixing the clipped
+   text with the note glyph's plain SVG in the same clipped box made the
+   gradient fail to paint at all, leaving only the glyph visible. */
+.splash-word-text {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* One unhurried fade in, hold, fade out — the word itself is the whole
+   moment, not a sequence of parts assembling. */
+@keyframes splash-word-breathe {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+}
+
+/* The "l" redrawn as an actual note glyph (see NoteGlyph.tsx) — sized off
+   the inherited font-size so it drops cleanly into both the splash hero
+   text and the small sidebar wordmark without separate rules. Solid gold
+   rather than the gradient text-clip: a shape can't be text-clipped, and
+   the accent's warm end reads as a deliberate highlight against it anyway. */
+.note-glyph {
+  display: inline-block;
+  width: 0.6em;
+  height: 0.72em;
+  vertical-align: -0.06em;
+  fill: var(--accent-2);
+}
+
+.strings-loader {
+  color: inherit;
+}
